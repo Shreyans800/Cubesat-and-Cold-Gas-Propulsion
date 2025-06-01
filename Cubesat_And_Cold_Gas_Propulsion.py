@@ -3,7 +3,7 @@ import numpy as np
 import plotly.graph_objects as go
 from poliastro.bodies import Earth
 from poliastro.twobody import Orbit
-from poliastro.plotting.util import time_range
+from poliastro.util import time_range
 from astropy import units as u
 import pandas as pd
 import warnings
