@@ -3,12 +3,20 @@ import numpy as np
 import plotly.graph_objects as go
 from poliastro.bodies import Earth
 from poliastro.twobody import Orbit
-from poliastro.util import time_range
 from astropy import units as u
+from astropy.time import Time, TimeDelta
 import pandas as pd
 import warnings
 
 warnings.filterwarnings("ignore", message="Thread 'MainThread': missing ScriptRunContext!")
+
+# --- Custom time_range function (replacing removed poliastro version) ---
+def time_range(start_time, end_time=None, periods=100):
+    if end_time is None:
+        raise ValueError("end_time must be specified if using this custom time_range.")
+    duration = (end_time - start_time).to(u.s)
+    steps = TimeDelta(np.linspace(0, duration.value, periods) * u.s)
+    return start_time + steps
 
 # --- Cold gas propulsion calculation ---
 def cold_gas_thrust(m_dot, ve):
@@ -32,7 +40,8 @@ def orbit_simulation(orbit_type, altitude_km=None, inclination_deg=None, periaps
         st.error("Unsupported orbit type.")
         return None, None
 
-    times = time_range(orbit.epoch, end=orbit.epoch + orbit.period, periods=100)
+    end_time = orbit.epoch + orbit.period
+    times = time_range(orbit.epoch, end_time=end_time, periods=100)
     r_vectors = np.array([orbit.propagate(t).r.to(u.km).value for t in times])
 
     fig = go.Figure()
@@ -115,7 +124,6 @@ def plot_power_vs_time(panel_area, efficiency, orbit_period_min):
 
     power_over_time = []
     for t in times_min:
-        # Eclipse occurs centered around half orbit
         if orbit_period_min * (0.5 - eclipse_fraction / 2) <= t <= orbit_period_min * (0.5 + eclipse_fraction / 2):
             power_over_time.append(0)
         else:
@@ -179,7 +187,6 @@ if st.button("Run Simulation"):
     if not valid_orbit_params:
         st.error("Cannot run simulation: periapsis must be less than apoapsis.")
     else:
-        # Calculate propulsion data table
         table_data = []
         for gas in gas_data:
             thrust, isp = cold_gas_thrust(gas["m_dot"], gas["ve"])
@@ -193,7 +200,6 @@ if st.button("Run Simulation"):
         st.subheader("Cold Gas Propulsion Data Table")
         st.dataframe(df)
 
-        # Orbit simulation & plot with error handling
         try:
             if orbit_type == "circular":
                 orbit_fig, orbit_period = orbit_simulation(orbit_type, altitude, inclination)
@@ -208,14 +214,11 @@ if st.button("Run Simulation"):
         else:
             st.warning("Orbit plot could not be generated.")
 
-        # Use default orbit period if None to avoid crashing solar power plot
         if orbit_period is None:
-            orbit_period = 90  # typical LEO orbit period in minutes
+            orbit_period = 90
 
-        # Solar power plot
         power_fig = plot_power_vs_time(panel_area, efficiency, orbit_period)
         st.plotly_chart(power_fig, use_container_width=True)
 
-        # CSV download
         csv = df.to_csv(index=False)
         st.download_button("Download Propulsion Data as CSV", data=csv, file_name="propulsion_data.csv", mime="text/csv")
