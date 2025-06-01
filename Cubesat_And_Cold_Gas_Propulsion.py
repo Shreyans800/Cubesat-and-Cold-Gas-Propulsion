@@ -3,20 +3,12 @@ import numpy as np
 import plotly.graph_objects as go
 from poliastro.bodies import Earth
 from poliastro.twobody import Orbit
+from astropy.time import TimeDelta
 from astropy import units as u
-from astropy.time import Time, TimeDelta
 import pandas as pd
 import warnings
 
 warnings.filterwarnings("ignore", message="Thread 'MainThread': missing ScriptRunContext!")
-
-# --- Custom time_range function (replacing removed poliastro version) ---
-def time_range(start_time, end_time=None, periods=100):
-    if end_time is None:
-        raise ValueError("end_time must be specified if using this custom time_range.")
-    duration = (end_time - start_time).to(u.s)
-    steps = TimeDelta(np.linspace(0, duration.value, periods) * u.s)
-    return start_time + steps
 
 # --- Cold gas propulsion calculation ---
 def cold_gas_thrust(m_dot, ve):
@@ -40,9 +32,9 @@ def orbit_simulation(orbit_type, altitude_km=None, inclination_deg=None, periaps
         st.error("Unsupported orbit type.")
         return None, None
 
-    end_time = orbit.epoch + orbit.period
-    times = time_range(orbit.epoch, end_time=end_time, periods=100)
-    r_vectors = np.array([orbit.propagate(t).r.to(u.km).value for t in times])
+    num_points = 100
+    times = [orbit.epoch + TimeDelta(t) for t in np.linspace(0, orbit.period.to_value(u.s), num_points) * u.s]
+    r_vectors = np.array([orbit.propagate(t - orbit.epoch).r.to_value(u.km) for t in times])
 
     fig = go.Figure()
 
@@ -109,7 +101,7 @@ def orbit_simulation(orbit_type, altitude_km=None, inclination_deg=None, periaps
         margin=dict(l=0, r=0, b=0, t=50)
     )
 
-    return fig, orbit.period.to_value(u.min)
+    return fig, orbit.period.to(u.min).value
 
 # --- Solar power calculation ---
 def solar_power_calc(panel_area, efficiency, solar_irradiance=1361):
@@ -150,7 +142,6 @@ def plot_power_vs_time(panel_area, efficiency, orbit_period_min):
 # --- Streamlit app starts here ---
 st.title("CubeSat Design and Cold Gas Propulsion Simulator")
 
-# Orbit input
 orbit_type = st.selectbox("Orbit Type", options=["circular", "elliptical"])
 
 valid_orbit_params = True
@@ -182,11 +173,12 @@ st.subheader("Solar Panel Parameters")
 panel_area = st.number_input("Solar Panel Area (m²)", min_value=0.0, value=0.1)
 efficiency = st.number_input("Solar Panel Efficiency (0 to 1)", min_value=0.0, max_value=1.0, value=0.28)
 
-# Run simulation button
+# Run simulation
 if st.button("Run Simulation"):
     if not valid_orbit_params:
         st.error("Cannot run simulation: periapsis must be less than apoapsis.")
     else:
+        # Propulsion table
         table_data = []
         for gas in gas_data:
             thrust, isp = cold_gas_thrust(gas["m_dot"], gas["ve"])
@@ -200,9 +192,10 @@ if st.button("Run Simulation"):
         st.subheader("Cold Gas Propulsion Data Table")
         st.dataframe(df)
 
+        # Orbit simulation
         try:
             if orbit_type == "circular":
-                orbit_fig, orbit_period = orbit_simulation(orbit_type, altitude, inclination)
+                orbit_fig, orbit_period = orbit_simulation(orbit_type, altitude_km=altitude, inclination_deg=inclination)
             else:
                 orbit_fig, orbit_period = orbit_simulation(orbit_type, periapsis_km=periapsis, apoapsis_km=apoapsis, inclination_deg=inclination)
         except Exception as e:
@@ -215,10 +208,12 @@ if st.button("Run Simulation"):
             st.warning("Orbit plot could not be generated.")
 
         if orbit_period is None:
-            orbit_period = 90
+            orbit_period = 90  # fallback value
 
+        # Solar power plot
         power_fig = plot_power_vs_time(panel_area, efficiency, orbit_period)
         st.plotly_chart(power_fig, use_container_width=True)
 
+        # CSV download
         csv = df.to_csv(index=False)
         st.download_button("Download Propulsion Data as CSV", data=csv, file_name="propulsion_data.csv", mime="text/csv")
