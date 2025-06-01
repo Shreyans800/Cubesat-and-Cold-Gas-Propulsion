@@ -109,7 +109,7 @@ def orbit_simulation(orbit_type, altitude_km=None, inclination_deg=None, periaps
         margin=dict(l=0, r=0, b=0, t=50)
     )
 
-    return fig, orbit.period.to(u.min).value
+    return fig, orbit.period.to_value(u.min)
 
 # --- Solar power calculation ---
 def solar_power_calc(panel_area, efficiency, solar_irradiance=1361):
