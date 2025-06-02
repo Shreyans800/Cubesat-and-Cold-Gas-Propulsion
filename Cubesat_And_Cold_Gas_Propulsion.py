@@ -150,8 +150,8 @@ if orbit_type == "circular":
     altitude = st.number_input("Orbit Altitude (km)", min_value=100, value=500)
     inclination = st.number_input("Orbit Inclination (deg)", min_value=0.0, max_value=180.0, value=97.6)
 else:
-    periapsis = st.number_input("Periapsis Altitude (km)", min_value=100, value=500)
-    apoapsis = st.number_input("Apoapsis Altitude (km)", min_value=100, value=2000)
+    periapsis = st.number_input("Periapsis Altitude (km)", min_value=100, value=300)
+    apoapsis = st.number_input("Apoapsis Altitude (km)", min_value=100, value=800)
     inclination = st.number_input("Orbit Inclination (deg)", min_value=0.0, max_value=180.0, value=97.6)
     if periapsis >= apoapsis:
         st.error("Periapsis must be less than Apoapsis.")
